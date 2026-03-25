@@ -23,6 +23,7 @@ Build-Depends:
  opencl-c-headers,
  libcairo2-dev,
 Standards-Version: 4.6.2
+Homepage: https://github.com/qualcomm/gst-plugins-imsdk
 
 Package: gstreamer1.0-plugins-imsdk
 Section: metapackages
