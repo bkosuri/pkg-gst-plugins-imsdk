@@ -1,4 +1,4 @@
-gst-plugins-qti-oss (1.8.1) noble; urgency=medium
+gst-plugins-imsdk (1.8.1) noble; urgency=medium
 
   [ QCTECMDR Service ]
   * Merge "heifmux: correctly handle multiple tiles per memory block for 4K"
