@@ -1,0 +1,163 @@
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
+#ifndef __GST_QTI_VIDEO_UTILS_H__
+#define __GST_QTI_VIDEO_UTILS_H__
+
+#include <gst/video/video.h>
+
+G_BEGIN_DECLS
+
+#define GST_VIDEO_ROI_META_CAST(obj) ((GstVideoRegionOfInterestMeta *) obj)
+
+#define GST_CAPS_FEATURE_MEMORY_GBM  "memory:GBM"
+
+typedef struct _GstVideoPoint GstVideoPoint;
+
+/**
+ * GstVideoPoint:
+ * @x: X Axis coordinate in pixels.
+ * @y: Y Axis coordinate in pixels.
+ *
+ * Point coordinates in pixels.
+ */
+struct _GstVideoPoint {
+  gfloat x;
+  gfloat y;
+};
+
+/**
+ * gst_gbm_qcom_backend_is_supported:
+ *
+ * Helper function for checking whether the QCOM GBM backend is supported.
+ *
+ * return: TRUE if supported or FALSE if not supported
+ */
+GST_VIDEO_API gboolean
+gst_gbm_qcom_backend_is_supported (void);
+
+/**
+ * gst_video_retrieve_gpu_alignment:
+ * @info: #GstVideoInfo structure which will be adjusted with the alignment.
+ * @align: #GstVideoAlignment structure which will populated.
+ *
+ * Helper function for retrieving the alignment requirements of the GPU.
+ *
+ * return: TRUE if supported or FALSE if not supported
+ */
+GST_VIDEO_API gboolean
+gst_video_retrieve_gpu_alignment (GstVideoInfo * info, GstVideoAlignment * align);
+
+/**
+ * gst_video_calculate_common_alignment:
+ *
+ * Helper function for calculating the commmon alignment between two video
+ * alignment structures.
+ *
+ * return: Video alignment struct with calculated common values
+ */
+GST_VIDEO_API GstVideoAlignment
+gst_video_calculate_common_alignment (GstVideoAlignment * l_align,
+                                      GstVideoAlignment * r_align);
+
+/**
+ * gst_query_get_video_alignment:
+ * @query: #GstQuery with allocation information.
+ * @align: #GstVideoAlignment from the GST_VIDEO_META in the query.
+ *
+ * Helper function to parse the query to get video alignment from allocation
+ * meta.
+ *
+ * return: TRUE on success or FALSE on failure
+ */
+GST_VIDEO_API gboolean
+gst_query_get_video_alignment (GstQuery * query, GstVideoAlignment * align);
+
+/**
+ * gst_buffer_get_video_region_of_interest_metas_parent_id:
+ * @buffer: The #GstBuffer to which to copy the meta.
+ * @parent_id: The metadata parent ID for which to check.
+ *
+ * Helper function for finding all GstVideoRegionOfInterestMeta on buffer with
+ * the given parent id.
+ *
+ * return: Pointer to list of #GstVideoRegionOfInterestMeta if any where found
+ */
+GST_VIDEO_API GList *
+gst_buffer_get_video_region_of_interest_metas_parent_id (GstBuffer * buffer,
+                                                         const gint parent_id);
+
+/**
+ * gst_buffer_copy_video_region_of_interest_meta:
+ * @buffer: The #GstBuffer to which to copy the meta.
+ * @meta: The #GstVideoRegionOfInterestMeta which will be copied.
+ *
+ * Helper function for copying ROI meta belonging to a different buffer into another.
+ *
+ * return: Pointer to the newly allocated ROI meta
+ */
+GST_VIDEO_API GstVideoRegionOfInterestMeta *
+gst_buffer_copy_video_region_of_interest_meta (GstBuffer * buffer,
+                                               GstVideoRegionOfInterestMeta * meta);
+
+/**
+ * gst_video_region_of_interest_coordinates_correction:
+ * @meta: The #GstVideoRegionOfInterestMeta whos coordinates will be corrected.
+ * @source: Source offset coordinates and dimensions for scale calculation.
+ * @destination: Destination offset coordinates and dimensions for scale calculation.
+ *
+ * Helper function for correcting region coordinates based on a source and
+ * destionation rectangles. Used primarily when transfering ROI meta from one
+ * buffer into another with some source to destination transformation.
+ *
+ * return: NONE
+ */
+GST_VIDEO_API void
+gst_video_region_of_interest_coordinates_correction (
+    GstVideoRegionOfInterestMeta * roimeta, GstVideoRectangle * source,
+    GstVideoRectangle * destination);
+
+/**
+ * gst_buffer_has_valid_parent_meta:
+ * @buffer: The #GstBuffer containing the metadata.
+ * @parent_id: The parent metadata ID to validate.
+ *
+ * Helper function to check if the given parent ID refers to a valid
+ * GstVideoRegionOfInterestMeta that is not of type "ImageRegion".
+ * Used to determine whether a metadata entry should retain its parent
+ * association for further processing.
+ *
+ * Returns: TRUE if the parent is not of type "ImageRegion", FALSE otherwise.
+ */
+GST_VIDEO_API gboolean
+gst_buffer_has_valid_parent_meta (GstBuffer * buffer, gint parent_id);
+
+/**
+ * gst_video_point_affine_correction:
+ * @point: #GstVideoPoint to which the affine matrix will be applied.
+ * @matrix: Affine transformation matrix.
+ *
+ * Helper function for adjusting coordinates of a 2D point with affine matrix.
+ *
+ * return: NONE
+ */
+GST_VIDEO_API void
+gst_video_point_affine_correction (GstVideoPoint * point, gdouble matrix[3][3]);
+
+/**
+ * gst_video_info_modify_with_meta:
+ * @info: #GstVideoInfo to write the correct values in
+ * @meta: #GstVideoMeta from which to take the correct values
+ *
+ * Helper function to derive some information from GstVideoMeta
+ *
+ * return: TRUE if meta isn't null and the basic info matches in both structs
+ */
+GST_VIDEO_API gboolean
+gst_video_info_modify_with_meta (GstVideoInfo * info, const GstVideoMeta * meta);
+
+G_END_DECLS
+
+#endif // __GST_QTI_VIDEO_UTILS_H__

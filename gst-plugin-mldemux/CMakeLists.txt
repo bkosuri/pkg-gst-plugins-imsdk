@@ -1,0 +1,58 @@
+cmake_minimum_required(VERSION 3.16)
+project(GST_PLUGIN_QTI_OSS_ML_DEMUX
+  VERSION ${GST_PLUGINS_QTI_OSS_VERSION} LANGUAGES C
+)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+find_package(PkgConfig)
+
+# Get the pkgconfigs exported by the automake tools
+pkg_check_modules(GST
+  REQUIRED gstreamer-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_BASE
+  REQUIRED gstreamer-base-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_QCOM_UTILS
+  REQUIRED gstreamer-qcom-oss-utils-1.0>=1.0.0)
+pkg_check_modules(GST_QCOM_ML
+  REQUIRED gstreamer-qcom-oss-ml-1.0>=1.0.0)
+
+# Generate configuration header file with plugin describing definitions
+configure_file(config.h.in config.h @ONLY)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+# Precompiler definitions.
+add_definitions(-DHAVE_CONFIG_H)
+
+# Common compiler flags.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-parameter")
+
+# GStreamer ML demux plugin.
+set(GST_QTI_ML_DEMUX gstqtimldemux)
+
+add_library(${GST_QTI_ML_DEMUX} SHARED
+  mldemux.c
+  mldemuxpads.c
+)
+
+target_include_directories(${GST_QTI_ML_DEMUX} PUBLIC
+  ${GST_INCLUDE_DIRS}
+  ${GST_QCOM_UTILS_INCLUDE_DIRS}
+  ${GST_QCOM_ML_INCLUDE_DIRS}
+)
+
+target_link_libraries(${GST_QTI_ML_DEMUX} PRIVATE
+  ${GST_LIBRARIES}
+  ${GST_BASE_LIBRARIES}
+  ${GST_QCOM_ML_LIBRARIES}
+  ${GST_QCOM_UTILS_LIBRARIES}
+)
+
+install(
+  TARGETS ${GST_QTI_ML_DEMUX}
+  LIBRARY DESTINATION ${GST_PLUGINS_QTI_OSS_INSTALL_LIBDIR}/gstreamer-1.0
+  PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+              GROUP_EXECUTE GROUP_READ
+              WORLD_EXECUTE WORLD_READ
+)

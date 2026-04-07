@@ -1,0 +1,69 @@
+project(gstreamer-qcom-oss-utils-1.0
+  VERSION 1.0.0
+  LANGUAGES C CXX
+  DESCRIPTION "GStreamer QTI Utils base library"
+)
+
+set(TARGET_NAME gstqtiutilsbase)
+
+set(TARGET_HEADERS
+  common-utils.h
+  batch-utils.h
+  $<$<BOOL:${ENABLE_RUNTIME_PARSER}>:${CMAKE_CURRENT_SOURCE_DIR}/runtime-flags-parser.h>
+  $<$<BOOL:${ENABLE_RUNTIME_PARSER}>:${CMAKE_CURRENT_SOURCE_DIR}/runtime-flags-parser-c-api.h>
+)
+
+add_library(${TARGET_NAME} SHARED
+  common-utils.c
+  batch-utils.c
+  $<$<BOOL:${ENABLE_RUNTIME_PARSER}>:runtime-flags-parser.cc>
+  $<$<BOOL:${ENABLE_RUNTIME_PARSER}>:runtime-flags-parser-c-api.cc>
+)
+
+set_target_properties(${TARGET_NAME} PROPERTIES
+  PUBLIC_HEADER "${TARGET_HEADERS}"
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
+target_compile_definitions(${TARGET_NAME} PRIVATE
+  $<$<BOOL:${ENABLE_RUNTIME_PARSER}>:ENABLE_RUNTIME_PARSER>
+)
+
+target_include_directories(${TARGET_NAME} PUBLIC
+  ${GST_INCLUDE_DIRS}
+  ${GST_JSON_INCLUDE_DIRS}
+)
+
+target_include_directories(${TARGET_NAME} INTERFACE
+  $<BUILD_INTERFACE:${QTI_PLUGINS_BASE_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/gstreamer-1.0>
+)
+
+target_link_libraries(${TARGET_NAME} PRIVATE
+  ${GST_LIBRARIES}
+  ${GST_JSON_LIBRARIES}
+)
+
+install(
+  TARGETS ${TARGET_NAME}
+  LIBRARY DESTINATION ${GST_PLUGINS_QTI_OSS_INSTALL_LIBDIR}
+  PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+              GROUP_EXECUTE GROUP_READ
+              WORLD_EXECUTE WORLD_READ
+  PUBLIC_HEADER DESTINATION ${GST_PLUGINS_QTI_OSS_INSTALL_INCDIR}/gstreamer-1.0/gst/utils/
+)
+
+# Add destination of compiletime pkg-config file to PKG_CONFIG_PATH
+set(ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_BINARY_DIR}:$ENV{PKG_CONFIG_PATH}")
+
+configure_file(
+  ${BASE_COMMON_PC_IN}
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc
+  @ONLY
+)
+
+install(
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc
+  DESTINATION ${GST_PLUGINS_QTI_OSS_INSTALL_LIBDIR}/pkgconfig
+)

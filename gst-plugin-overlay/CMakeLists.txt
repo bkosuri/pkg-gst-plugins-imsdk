@@ -1,0 +1,103 @@
+cmake_minimum_required(VERSION 3.16)
+project(GST_PLUGIN_QTI_OSS_OVERLAY
+  VERSION ${GST_PLUGINS_QTI_OSS_VERSION}
+  LANGUAGES C CXX
+)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+find_package(PkgConfig)
+
+# Get the pkgconfigs exported by the automake tools
+pkg_check_modules(GST
+  REQUIRED gstreamer-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_ALLOC
+  REQUIRED gstreamer-allocators-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_VIDEO
+  REQUIRED gstreamer-video-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_QCOM_UTILS
+  REQUIRED gstreamer-qcom-oss-utils-1.0>=1.0.0)
+pkg_check_modules(GST_QCOM_VIDEO
+  REQUIRED gstreamer-qcom-oss-video-1.0>=1.0.0)
+pkg_check_modules(GST_QCOM_CV
+  REQUIRED gstreamer-qcom-oss-cv-1.0>=1.0.0)
+
+# Generate configuration header file with plugin describing definitions
+configure_file(config.h.in config.h @ONLY)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+# Precompiler definitions.
+add_definitions(-DHAVE_CONFIG_H)
+
+# Check whether C2D header is present.
+include(CheckIncludeFile)
+check_include_file("adreno/c2d2.h" HAVE_C2D_H)
+
+# Check whether IB2C header is present.
+include(CheckIncludeFileCXX)
+check_include_file_cxx("gstreamer-1.0/gst/gfx/ib2c.h" HAVE_GLES_H)
+
+# Check whether CL EXT header is present.
+include(CheckIncludeFile)
+check_include_file("CL/cl_ext_qcom.h" HAVE_CL_EXT_QCOM_H)
+
+# Check whether MSM media info header is present.
+include(CheckIncludeFile)
+check_include_file("media/msm_media_info.h" HAVE_MSM_MEDIA_INFO_H)
+
+# Check whether MMM color format header is present.
+include(CheckIncludeFile)
+check_include_file("display/media/mmm_color_fmt.h" HAVE_MMM_COLOR_FMT_H)
+
+# Check whether DMA HEAP header is present.
+include(CheckIncludeFileCXX)
+check_include_file_cxx("linux/dma-heap.h" HAVE_LINUX_DMA_HEAP_H)
+
+# Check whether DMA header is present.
+include(CheckIncludeFile)
+check_include_file("linux/dma-buf.h" HAVE_LINUX_DMA_BUF_H)
+
+# Common compiler flags.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+
+# GStreamer plugin.
+set(GST_QTI_OVERLAY qtioverlay)
+
+add_library(${GST_QTI_OVERLAY} SHARED
+  gstoverlay.cc
+)
+
+target_include_directories(${GST_QTI_OVERLAY} PRIVATE
+  ${GST_INCLUDE_DIRS}
+  ${KERNEL_BUILDDIR}/usr/include
+  ${GST_QCOM_UTILS_INCLUDE_DIRS}
+  ${GST_QCOM_VIDEO_INCLUDE_DIRS}
+  ${GST_QCOM_CV_INCLUDE_DIRS}
+)
+
+target_compile_definitions(${GST_QTI_OVERLAY} PRIVATE
+  $<$<BOOL:${HAVE_C2D_H}>:ENABLE_C2D>
+  $<$<BOOL:${HAVE_GLES_H}>:ENABLE_GLES>
+)
+
+target_link_libraries(${GST_QTI_OVERLAY} PRIVATE
+  overlay_lib
+  ${GST_LIBRARIES}
+  ${GST_ALLOC_LIBRARIES}
+  ${GST_VIDEO_LIBRARIES}
+  ${GST_QCOM_CV_LIBRARIES}
+  ${GST_QCOM_UTILS_LIBRARIES}
+  ${GST_QCOM_VIDEO_LIBRARIES}
+)
+
+install(
+  TARGETS ${GST_QTI_OVERLAY}
+  LIBRARY DESTINATION ${GST_PLUGINS_QTI_OSS_INSTALL_LIBDIR}/gstreamer-1.0
+  PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+              GROUP_EXECUTE GROUP_READ
+              WORLD_EXECUTE WORLD_READ
+)
+
+add_subdirectory(overlay-lib)

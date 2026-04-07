@@ -1,0 +1,2 @@
+#!/bin/sh
+python3 /usr/bin/gst-gui-launcher-app.py

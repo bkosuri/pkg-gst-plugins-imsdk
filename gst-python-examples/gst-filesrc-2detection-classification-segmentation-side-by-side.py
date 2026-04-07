@@ -1,0 +1,621 @@
+#!/usr/bin/env python3
+
+################################################################################
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+################################################################################
+
+import os
+import sys
+import signal
+import gi
+import argparse
+
+gi.require_version("Gst", "1.0")
+gi.require_version("GLib", "2.0")
+from gi.repository import Gst, GLib
+
+# Configurations for Detection (0)
+DEFAULT_DETECTION_INPUT_0 = "/etc/media/video.mp4"
+DEFAULT_DETECTION_MODEL_0 = "/etc/models/yolox_quantized.tflite"
+DEFAULT_DETECTION_MODULE_0 = "yolov8"
+DEFAULT_DETECTION_LABELS_0 = "/etc/labels/yolox.json"
+
+# Configurations for Detection (1)
+DEFAULT_DETECTION_INPUT_1 = "/etc/media/video.mp4"
+DEFAULT_DETECTION_MODEL_1 = "/etc/models/yolox_quantized.tflite"
+DEFAULT_DETECTION_MODULE_1 = "yolov8"
+DEFAULT_DETECTION_LABELS_1 = "/etc/labels/yolox.json"
+
+# Configurations for Classification
+DEFAULT_CLASSIFICATION_INPUT = "/etc/media/video.mp4"
+DEFAULT_CLASSIFICATION_MODEL = "/etc/models/inception_v3_quantized.tflite"
+DEFAULT_CLASSIFICATION_MODULE = "mobilenet-softmax"
+DEFAULT_CLASSIFICATION_LABELS = "/etc/labels/classification.json"
+
+# Configurations for Segmentation
+DEFAULT_SEGMENTATION_INPUT = "/etc/media/video.mp4"
+DEFAULT_SEGMENTATION_MODEL = "/etc/models/deeplabv3_plus_mobilenet_quantized.tflite"
+DEFAULT_SEGMENTATION_MODULE = "deeplab-argmax"
+DEFAULT_SEGMENTATION_LABELS = "/etc/labels/deeplabv3_resnet50.json"
+
+DESCRIPTION = f"""
+The application uses:
+- A TFLite model to identify the object in scene from video file and
+overlay the bounding boxes over the detected objects
+- A TFLite model to identify the object in scene from video file and
+overlay the bounding boxes over the detected objects
+- A TFLite model to classify scene from video file and overlay the
+classification labels on the top left corner
+- A TFLite model to produce semantic segmentations for video file
+Then the results are shown side by side on the display.
+
+The default file paths in the python script are as follows:
+- Input video for detection:      {DEFAULT_DETECTION_INPUT_0}
+- Detection model:                {DEFAULT_DETECTION_MODEL_0}
+- Detection labels:               {DEFAULT_DETECTION_LABELS_0}
+- Input video for classification: {DEFAULT_CLASSIFICATION_INPUT}
+- Classification model:           {DEFAULT_CLASSIFICATION_MODEL}
+- Classification labels:          {DEFAULT_CLASSIFICATION_LABELS}
+- Input video for segmentation:   {DEFAULT_SEGMENTATION_INPUT}
+- Segmentation model:             {DEFAULT_SEGMENTATION_MODEL}
+- Segmentation labels:            {DEFAULT_SEGMENTATION_LABELS}
+
+To override the default settings,
+please configure the corresponding module as well.
+"""
+
+eos_received = False
+def create_element(factory_name, name):
+    """Create a GStreamer element."""
+    element = Gst.ElementFactory.make(factory_name, name)
+    if not element:
+        raise Exception(f"Failed to create {factory_name} named {name}!")
+    return element
+
+
+def link_elements(link_orders, elements):
+    """Link elements in the specified orders."""
+    for link_order in link_orders:
+        src = None
+        for element in link_order:
+            dest = elements[element]
+            if src and not src.link(dest):
+                raise Exception(
+                    f"Failed to link element\
+                    {src.get_name()} with {dest.get_name()}"
+                )
+            src = dest
+
+
+def construct_pipeline(pipe):
+    """Initialize and link elements for the GStreamer pipeline."""
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        description=DESCRIPTION,
+        formatter_class=type(
+            'CustomFormatter',
+            (argparse.ArgumentDefaultsHelpFormatter, argparse.RawTextHelpFormatter),
+            {}
+        )
+    )
+
+    parser.add_argument(
+        "--detection_input_0", type=str, default=DEFAULT_DETECTION_INPUT_0,
+        help="Input File Path for Detection (0)"
+    )
+    parser.add_argument(
+        "--detection_model_0", type=str, default=DEFAULT_DETECTION_MODEL_0,
+        help="Path to TfLite Object Detection Model (0)"
+    )
+    parser.add_argument(
+        "--detection_module_0", type=str, default=DEFAULT_DETECTION_MODULE_0,
+        help="Object Detection module for post-procesing (0)"
+    )
+    parser.add_argument(
+        "--detection_labels_0", type=str, default=DEFAULT_DETECTION_LABELS_0,
+        help="Path to TfLite Object Detection Labels (0)"
+    )
+    parser.add_argument(
+        "--detection_input_1", type=str, default=DEFAULT_DETECTION_INPUT_1,
+        help="Input File Path for Detection (1)"
+    )
+    parser.add_argument(
+        "--detection_model_1", type=str, default=DEFAULT_DETECTION_MODEL_1,
+        help="Path to TfLite Object Detection Model (1)"
+    )
+    parser.add_argument(
+        "--detection_module_1", type=str, default=DEFAULT_DETECTION_MODULE_1,
+        help="Object Detection module for post-procesing (1)"
+    )
+    parser.add_argument(
+        "--detection_labels_1", type=str, default=DEFAULT_DETECTION_LABELS_1,
+        help="Path to TfLite Object Detection Labels (1)"
+    )
+    parser.add_argument(
+        "--classification_input", type=str, default=DEFAULT_CLASSIFICATION_INPUT,
+        help="Input File Path for Classification"
+    )
+    parser.add_argument(
+        "--classification_model", type=str, default=DEFAULT_CLASSIFICATION_MODEL,
+        help="Path to TfLite Classification Model"
+    )
+    parser.add_argument(
+        "--classification_module", type=str, default=DEFAULT_CLASSIFICATION_MODULE,
+        help="Classification module for post-procesing"
+    )
+    parser.add_argument(
+        "--classification_labels", type=str, default=DEFAULT_CLASSIFICATION_LABELS,
+        help="Path to TfLite Classification Labels"
+    )
+    parser.add_argument(
+        "--segmentation_input", type=str, default=DEFAULT_SEGMENTATION_INPUT,
+        help="Input File Path for Segmentation"
+    )
+    parser.add_argument(
+        "--segmentation_model", type=str, default=DEFAULT_SEGMENTATION_MODEL,
+        help="Path to TfLite Segmentation Model"
+    )
+    parser.add_argument(
+        "--segmentation_module", type=str, default=DEFAULT_SEGMENTATION_MODULE,
+        help="Segmentation module for post-procesing"
+    )
+    parser.add_argument(
+        "--segmentation_labels", type=str, default=DEFAULT_SEGMENTATION_LABELS,
+        help="Path to TfLite Segmentation Labels"
+    )
+
+    args = parser.parse_args()
+
+    detection = [
+        {
+        "input": args.detection_input_0,
+        "model": args.detection_model_0,
+        "module": args.detection_module_0,
+        "labels": args.detection_labels_0
+        },
+        {
+        "input": args.detection_input_1,
+        "model": args.detection_model_1,
+        "module": args.detection_module_1,
+        "labels": args.detection_labels_1
+        }
+    ]
+    classification = {
+        "input": args.classification_input,
+        "model": args.classification_model,
+        "module": args.classification_module,
+        "labels": args.classification_labels
+    }
+    segmentation = {
+        "input": args.segmentation_input,
+        "model": args.segmentation_model,
+        "module": args.segmentation_module,
+        "labels": args.segmentation_labels
+    }
+
+    # Create all elements
+    # fmt: off
+    elements = {
+        # Stream 0
+        "filesrc_0":         create_element("filesrc", "filesrc0"),
+        "qtdemux_0":         create_element("qtdemux", "qtdemux0"),
+        "h264parse_0":       create_element("h264parse", "h264parser0"),
+        "v4l2h264dec_0":     create_element("v4l2h264dec", "v4l2h264decoder0"),
+        "deccaps_0":         create_element("capsfilter", "deccaps0"),
+        "tee_0":             create_element("tee", "split0"),
+        "mlvconverter_0":    create_element("qtimlvconverter", "converter0"),
+        "mltflite_0":        create_element("qtimltflite", "inference0"),
+        "mlvdetection_0":    create_element("qtimlpostprocess", "detection0"),
+        "capsfilter_0":      create_element("capsfilter", "metamux0metacaps"),
+        "metamux_0":         create_element("qtimetamux", "metamux0"),
+        "overlay_0":         create_element("qtivoverlay", "overlay0"),
+        # Stream 1
+        "filesrc_1":         create_element("filesrc", "filesrc1"),
+        "qtdemux_1":         create_element("qtdemux", "qtdemux1"),
+        "h264parse_1":       create_element("h264parse", "h264parser1"),
+        "v4l2h264dec_1":     create_element("v4l2h264dec", "v4l2h264decoder1"),
+        "deccaps_1":         create_element("capsfilter", "deccaps1"),
+        "tee_1":             create_element("tee", "split1"),
+        "mlvconverter_1":    create_element("qtimlvconverter", "converter1"),
+        "mltflite_1":        create_element("qtimltflite", "inference1"),
+        "mlvdetection_1":    create_element("qtimlpostprocess", "detection1"),
+        "capsfilter_1":      create_element("capsfilter", "metamux1metacaps"),
+        "metamux_1":         create_element("qtimetamux", "metamux1"),
+        "overlay_1":         create_element("qtivoverlay", "overlay1"),
+        # Stream 2
+        "filesrc_2":         create_element("filesrc", "filesrc2"),
+        "qtdemux_2":         create_element("qtdemux", "qtdemux2"),
+        "h264parse_2":       create_element("h264parse", "h264parser2"),
+        "v4l2h264dec_2":     create_element("v4l2h264dec", "v4l2h264decoder2"),
+        "deccaps_2":         create_element("capsfilter", "deccaps2"),
+        "tee_2":             create_element("tee", "split2"),
+        "mlvconverter_2":    create_element("qtimlvconverter", "converter2"),
+        "mltflite_2":        create_element("qtimltflite", "inference2"),
+        "mlvclassification": create_element("qtimlpostprocess", "classification"),
+        "capsfilter_2":      create_element("capsfilter", "metamux2metacaps"),
+        "metamux_2":         create_element("qtimetamux", "metamux2"),
+        "overlay_2":         create_element("qtivoverlay", "overlay2"),
+        # Stream 3
+        "filesrc_3":         create_element("filesrc", "filesrc3"),
+        "qtdemux_3":         create_element("qtdemux", "qtdemux3"),
+        "h264parse_3":       create_element("h264parse", "h264parser3"),
+        "v4l2h264dec_3":     create_element("v4l2h264dec", "v4l2h264decoder3"),
+        "deccaps_3":         create_element("capsfilter", "deccaps3"),
+        "tee_3":             create_element("tee", "split3"),
+        "mlvconverter_3":    create_element("qtimlvconverter", "converter3"),
+        "mltflite_3":        create_element("qtimltflite", "inference3"),
+        "mlvsegmentation":   create_element("qtimlpostprocess", "segmentation"),
+        "capsfilter_3":      create_element("capsfilter", "metamux3metacaps"),
+        # Side by side all streams
+        "composer":          create_element("qtivcomposer", "composer"),
+        "display":           create_element("waylandsink", "display")
+    }
+    # fmt: on
+
+    queue_count = 21
+    for i in range(queue_count):
+        queue_name = f"queue_{i}"
+        elements[queue_name] = create_element("queue", queue_name)
+
+    # Set element properties
+    # Stream 0
+    Gst.util_set_object_arg(
+        elements["filesrc_0"], "location", detection[0]["input"]
+    )
+
+    Gst.util_set_object_arg(elements["h264parse_0"], "config-interval", "1")
+
+    Gst.util_set_object_arg(elements["v4l2h264dec_0"], "capture-io-mode", "dmabuf")
+    Gst.util_set_object_arg(elements["v4l2h264dec_0"], "output-io-mode", "dmabuf")
+
+    Gst.util_set_object_arg(
+        elements["deccaps_0"], "caps", "video/x-raw,format=NV12"
+    )
+
+    Gst.util_set_object_arg(elements["mltflite_0"], "delegate", "external")
+    Gst.util_set_object_arg(
+        elements["mltflite_0"],
+        "external-delegate-path",
+        "libQnnTFLiteDelegate.so",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_0"],
+        "external-delegate-options",
+        "QNNExternalDelegate,backend_type=htp,htp_precision=(string)1;",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_0"],
+        "model",
+        detection[0]["model"],
+    )
+
+    detection_threshold = 75.0
+    settings = f'{{"confidence": {detection_threshold:.1f}}}'
+    Gst.util_set_object_arg(elements["mlvdetection_0"], "settings", settings)
+    Gst.util_set_object_arg(elements["mlvdetection_0"], "results", "4")
+    Gst.util_set_object_arg(
+        elements["mlvdetection_0"], "module", detection[0]["module"]
+    )
+    Gst.util_set_object_arg(
+        elements["mlvdetection_0"], "labels", detection[0]["labels"]
+    )
+
+    Gst.util_set_object_arg(elements["capsfilter_0"], "caps", "text/x-raw")
+
+    Gst.util_set_object_arg(elements["overlay_0"], "engine", "gles")
+
+    # Stream 1
+    Gst.util_set_object_arg(
+        elements["filesrc_1"], "location", detection[1]["input"]
+    )
+
+    Gst.util_set_object_arg(elements["h264parse_1"], "config-interval", "1")
+
+    Gst.util_set_object_arg(elements["v4l2h264dec_1"], "capture-io-mode", "dmabuf")
+    Gst.util_set_object_arg(elements["v4l2h264dec_1"], "output-io-mode", "dmabuf")
+
+    Gst.util_set_object_arg(
+        elements["deccaps_1"], "caps", "video/x-raw,format=NV12"
+    )
+
+    Gst.util_set_object_arg(elements["mltflite_1"], "delegate", "external")
+    Gst.util_set_object_arg(
+        elements["mltflite_1"],
+        "external-delegate-path",
+        "libQnnTFLiteDelegate.so",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_1"],
+        "external-delegate-options",
+        "QNNExternalDelegate,backend_type=htp,htp_precision=(string)1;",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_1"],
+        "model",
+        detection[1]["model"],
+    )
+
+    det_threshold = 75.0
+    settings = f'{{"confidence": {det_threshold:.1f}}}'
+    Gst.util_set_object_arg(elements["mlvdetection_1"], "settings", settings)
+    Gst.util_set_object_arg(elements["mlvdetection_1"], "results", "4")
+    Gst.util_set_object_arg(elements["mlvdetection_1"], "module", detection[1]["module"])
+    Gst.util_set_object_arg(
+        elements["mlvdetection_1"], "labels", detection[1]["labels"]
+    )
+
+    Gst.util_set_object_arg(elements["capsfilter_1"], "caps", "text/x-raw")
+
+    Gst.util_set_object_arg(elements["overlay_1"], "engine", "gles")
+
+    # Stream 2
+    Gst.util_set_object_arg(
+        elements["filesrc_2"], "location", classification["input"],
+    )
+
+    Gst.util_set_object_arg(elements["h264parse_2"], "config-interval", "2")
+
+    Gst.util_set_object_arg(elements["v4l2h264dec_2"], "capture-io-mode", "dmabuf")
+    Gst.util_set_object_arg(elements["v4l2h264dec_2"], "output-io-mode", "dmabuf")
+
+    Gst.util_set_object_arg(
+        elements["deccaps_2"], "caps", "video/x-raw,format=NV12"
+    )
+
+    Gst.util_set_object_arg(elements["mltflite_2"], "delegate", "external")
+    Gst.util_set_object_arg(
+        elements["mltflite_2"],
+        "external-delegate-path",
+        "libQnnTFLiteDelegate.so",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_2"],
+        "external-delegate-options",
+        "QNNExternalDelegate,backend_type=htp;",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_2"], "model", classification["model"]
+    )
+
+    classification_threshold = 51.0
+    settings = f'{{"confidence": {classification_threshold:.1f}}}'
+    Gst.util_set_object_arg(elements["mlvclassification"], "settings", settings)
+    Gst.util_set_object_arg(elements["mlvclassification"], "results", "5")
+    Gst.util_set_object_arg(
+        elements["mlvclassification"], "module", classification["module"]
+    )
+    Gst.util_set_object_arg(
+        elements["mlvclassification"], "labels", classification["labels"]
+    )
+
+    Gst.util_set_object_arg(elements["capsfilter_2"], "caps", "text/x-raw")
+
+    Gst.util_set_object_arg(elements["overlay_2"], "engine", "gles")
+
+    # Stream 3
+    Gst.util_set_object_arg(
+        elements["filesrc_3"], "location", segmentation["input"],
+    )
+
+    Gst.util_set_object_arg(elements["h264parse_3"], "config-interval", "2")
+
+    Gst.util_set_object_arg(elements["v4l2h264dec_3"], "capture-io-mode", "dmabuf")
+    Gst.util_set_object_arg(elements["v4l2h264dec_3"], "output-io-mode", "dmabuf")
+
+    Gst.util_set_object_arg(
+        elements["deccaps_3"], "caps", "video/x-raw,format=NV12"
+    )
+
+    Gst.util_set_object_arg(elements["mltflite_3"], "delegate", "external")
+    Gst.util_set_object_arg(
+        elements["mltflite_3"],
+        "external-delegate-path",
+        "libQnnTFLiteDelegate.so",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_3"],
+        "external-delegate-options",
+        "QNNExternalDelegate,backend_type=htp;",
+    )
+    Gst.util_set_object_arg(
+        elements["mltflite_3"], "model", segmentation["model"]
+    )
+
+    Gst.util_set_object_arg(
+        elements["mlvsegmentation"], "module", segmentation["module"]
+    )
+    Gst.util_set_object_arg(
+        elements["mlvsegmentation"], "labels", segmentation["labels"]
+    )
+
+    # Side by side all streams
+    Gst.util_set_object_arg(elements["composer"], "background", "0")
+
+    Gst.util_set_object_arg(elements["display"], "sync", "false")
+    Gst.util_set_object_arg(elements["display"], "fullscreen", "true")
+
+    # Add all elements
+    for element in elements.values():
+        pipe.add(element)
+
+    # Link most of the elements
+    # fmt: off
+    link_orders = [
+        [ "filesrc_0", "qtdemux_0" ],
+        [
+            "h264parse_0", "v4l2h264dec_0", "deccaps_0", "tee_0", "queue_0",
+            "metamux_0", "overlay_0", "composer"
+        ],
+        [
+            "tee_0", "queue_1", "mlvconverter_0", "queue_2", "mltflite_0",
+            "queue_3", "mlvdetection_0", "queue_4", "capsfilter_0", "metamux_0"
+        ],
+        [ "filesrc_1", "qtdemux_1" ],
+        [
+            "h264parse_1", "v4l2h264dec_1", "deccaps_1", "tee_1", "queue_5",
+            "metamux_1", "overlay_1", "composer"
+        ],
+        [
+            "tee_1", "queue_6", "mlvconverter_1", "queue_7", "mltflite_1",
+            "queue_8", "mlvdetection_1", "queue_9", "capsfilter_1", "metamux_1"
+        ],
+        [ "filesrc_2", "qtdemux_2" ],
+        [
+            "h264parse_2", "v4l2h264dec_2", "deccaps_2", "tee_2", "queue_10",
+            "metamux_2", "overlay_2", "composer"
+        ],
+        [
+            "tee_2", "queue_11", "mlvconverter_2", "queue_12", "mltflite_2",
+            "queue_13", "mlvclassification", "queue_14", "capsfilter_2", "metamux_2"
+        ],
+        [ "filesrc_3", "qtdemux_3" ],
+        [
+            "h264parse_3", "v4l2h264dec_3", "deccaps_3", "tee_3", "queue_15",
+            "composer"
+        ],
+        [
+            "tee_3", "queue_16", "mlvconverter_3", "queue_17", "mltflite_3",
+            "queue_18", "mlvsegmentation", "queue_19", "composer"
+        ],
+        [ "composer", "queue_20", "display" ]
+    ]
+    # fmt: on
+    link_elements(link_orders, elements)
+
+    # Link qtdemux elements
+    def on_pad_added(elem, pad, dest):
+        if "video" in pad.get_name():
+            sink_pad = dest.get_static_pad("sink")
+            if (
+                not sink_pad.is_linked()
+                and pad.link(sink_pad) != Gst.PadLinkReturn.OK
+            ):
+                raise (
+                    f"Failed to link {elem.get_name()} with {dest.get_name()}!"
+                )
+
+    elements["qtdemux_0"].connect(
+        "pad-added", on_pad_added, elements["h264parse_0"]
+    )
+    elements["qtdemux_1"].connect(
+        "pad-added", on_pad_added, elements["h264parse_1"]
+    )
+    elements["qtdemux_2"].connect(
+        "pad-added", on_pad_added, elements["h264parse_2"]
+    )
+    elements["qtdemux_3"].connect(
+        "pad-added", on_pad_added, elements["h264parse_3"]
+    )
+
+    # Set pad properties
+    composer_sink_0 = elements["composer"].get_static_pad("sink_0")
+    composer_sink_1 = elements["composer"].get_static_pad("sink_1")
+    composer_sink_2 = elements["composer"].get_static_pad("sink_2")
+    composer_sink_3 = elements["composer"].get_static_pad("sink_3")
+    composer_sink_4 = elements["composer"].get_static_pad("sink_4")
+    Gst.util_set_object_arg(composer_sink_0, "position", "<0, 0>")
+    Gst.util_set_object_arg(composer_sink_0, "dimensions", "<1280, 720>")
+    Gst.util_set_object_arg(composer_sink_1, "position", "<1280, 0>")
+    Gst.util_set_object_arg(composer_sink_1, "dimensions", "<1280, 720>")
+    Gst.util_set_object_arg(composer_sink_2, "position", "<0, 720>")
+    Gst.util_set_object_arg(composer_sink_2, "dimensions", "<1280, 720>")
+    Gst.util_set_object_arg(composer_sink_3, "position", "<1280, 720>")
+    Gst.util_set_object_arg(composer_sink_3, "dimensions", "<1280, 720>")
+    Gst.util_set_object_arg(composer_sink_4, "position", "<1280, 720>")
+    Gst.util_set_object_arg(composer_sink_4, "dimensions", "<1280, 720>")
+    Gst.util_set_object_arg(composer_sink_4, "alpha", "0.5")
+    composer_sink_0 = None
+    composer_sink_1 = None
+    composer_sink_2 = None
+    composer_sink_3 = None
+    composer_sink_4 = None
+
+
+def quit_mainloop(loop):
+    """Quit the mainloop if it is running."""
+    if loop.is_running():
+        print("Quitting mainloop!")
+        loop.quit()
+    else:
+        print("Loop is not running!")
+
+
+def bus_call(_, message, loop):
+    """Handle bus messages."""
+    global eos_received
+
+    message_type = message.type
+    if message_type == Gst.MessageType.EOS:
+        print("EoS received!")
+        eos_received = True
+        quit_mainloop(loop)
+    elif message_type == Gst.MessageType.ERROR:
+        error, debug_info = message.parse_error()
+        print("ERROR:", message.src.get_name(), " ", error.message)
+        if debug_info:
+            print("debugging info:", debug_info)
+        quit_mainloop(loop)
+    return True
+
+
+def handle_interrupt_signal(pipe, loop):
+    """Handle ctrl+C signal."""
+    _, state, _ = pipe.get_state(Gst.CLOCK_TIME_NONE)
+    if state == Gst.State.PLAYING:
+        event = Gst.Event.new_eos()
+        if pipe.send_event(event):
+            print("EoS sent!")
+        else:
+            print("Failed to send EoS event to the pipeline!")
+            quit_mainloop(loop)
+    else:
+        print("Pipeline is not playing, terminating!")
+        quit_mainloop(loop)
+    return GLib.SOURCE_CONTINUE
+
+def main():
+    """Main function to set up and run the GStreamer pipeline."""
+
+    Gst.init(None)
+
+    try:
+        pipe = Gst.Pipeline()
+        if not pipe:
+            raise Exception("Failed to create pipeline!")
+        construct_pipeline(pipe)
+    except Exception as e:
+        print(f"{e}")
+        Gst.deinit()
+        return 1
+
+    loop = GLib.MainLoop()
+
+    bus = pipe.get_bus()
+    bus.add_signal_watch()
+    bus.connect("message", bus_call, loop)
+
+    interrupt_watch_id = GLib.unix_signal_add(
+        GLib.PRIORITY_HIGH, signal.SIGINT, handle_interrupt_signal, pipe, loop
+    )
+
+    pipe.set_state(Gst.State.PLAYING)
+    loop.run()
+
+    GLib.source_remove(interrupt_watch_id)
+    bus.remove_signal_watch()
+    bus = None
+
+    pipe.set_state(Gst.State.NULL)
+    loop = None
+    pipe = None
+
+    Gst.deinit()
+    if eos_received:
+        print("App execution successful")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

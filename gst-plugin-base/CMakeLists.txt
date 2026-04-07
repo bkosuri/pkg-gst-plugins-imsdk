@@ -1,0 +1,69 @@
+cmake_minimum_required(VERSION 3.16)
+project(gstreamer-qcom-oss-base-1.0
+  VERSION ${GST_PLUGINS_QTI_OSS_VERSION}
+  LANGUAGES C CXX
+)
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+find_package(PkgConfig)
+
+# Get the pkgconfigs exported by the automake tools
+pkg_check_modules(GST REQUIRED gstreamer-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_ALLOC REQUIRED gstreamer-allocators-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_VIDEO REQUIRED gstreamer-video-1.0>=${GST_VERSION_REQUIRED})
+pkg_check_modules(GST_JSON REQUIRED json-glib-1.0)
+pkg_check_modules(FASTCV qcom-fastcv-binaries)
+pkg_check_modules(EGL egl)
+pkg_check_modules(GLES glesv2)
+pkg_check_modules(OPEN_CV opencv4)
+
+include(CheckIncludeFile)
+include(CheckIncludeFileCXX)
+
+# Check whether MMM color format header is present.
+check_include_file("display/media/mmm_color_fmt.h" HAVE_MMM_COLOR_FMT_H)
+
+# Check whether MSM media info header is present.
+check_include_file("media/msm_media_info.h" HAVE_MSM_MEDIA_INFO_H)
+
+# Check whether DMA HEAP header is present.
+check_include_file("linux/dma-heap.h" HAVE_LINUX_DMA_HEAP_H)
+
+# Check whether Adreno C2D header is present.
+check_include_file("adreno/c2d2.h" HAVE_ADRENO_C2D2_H)
+
+# Check whether FastCV header is present.
+check_include_file("fastcv/fastcv.h" HAVE_FASTCV_H)
+
+# Check whether GBM header is present.
+check_include_file("gbm_priv.h" HAVE_GBM_PRIV_H)
+
+# Common compiler flags.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-parameter")
+
+# Common CXX compiler flags.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+
+include_directories(
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/gstreamer-1.0>
+)
+
+# Define path to gst-plugins-base tree
+set(QTI_PLUGINS_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Define the path to the common pkg-config template file used by all subdirectories
+set(BASE_COMMON_PC_IN ${CMAKE_CURRENT_SOURCE_DIR}/gst/common.pc.in)
+
+add_subdirectory(gst/gfx)
+add_subdirectory(gst/utils)
+add_subdirectory(gst/video)
+add_subdirectory(gst/memory)
+add_subdirectory(gst/ml)
+add_subdirectory(gst/cv)
+add_subdirectory(gst/allocators)
+add_subdirectory(gst/camera)

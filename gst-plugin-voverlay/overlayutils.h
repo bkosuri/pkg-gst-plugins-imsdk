@@ -1,0 +1,274 @@
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
+#ifndef __GST_QTI_OVERLAY_UTILS_H__
+#define __GST_QTI_OVERLAY_UTILS_H__
+
+#include <gst/gst.h>
+#include <gst/video/video.h>
+#include <gst/video/video-converter-engine.h>
+#include <gst/cv/gstcvmeta.h>
+#include <gst/utils/common-utils.h>
+#include <gst/video/gstvideoclassificationmeta.h>
+#include <gst/video/gstvideolandmarksmeta.h>
+
+G_BEGIN_DECLS
+
+#define GST_OVERLAY_BBOX_CAST(obj)      ((GstOverlayBBox *)(obj))
+#define GST_OVERLAY_TIMESTAMP_CAST(obj) ((GstOverlayTimestamp *)(obj))
+#define GST_OVERLAY_STRING_CAST(obj)    ((GstOverlayString *)(obj))
+#define GST_OVERLAY_IMAGE_CAST(obj)     ((GstOverlayImage *)(obj))
+#define GST_OVERLAY_MASK_CAST(obj)      ((GstOverlayMask *)(obj))
+
+#define GST_VIDEO_POLYGON_MIN_POINTS    3
+#define GST_VIDEO_POLYGON_MAX_POINTS    20
+
+typedef struct _GstVideoCoords GstVideoCoords;
+typedef struct _GstVideoCircle GstVideoCircle;
+typedef struct _GstVideoPolygon GstVideoPolygon;
+typedef struct _GstOverlayTimestamp GstOverlayTimestamp;
+typedef struct _GstOverlayBBox GstOverlayBBox;
+typedef struct _GstOverlayString GstOverlayString;
+typedef struct _GstOverlayImage GstOverlayImage;
+typedef struct _GstOverlayMask GstOverlayMask;
+
+enum
+{
+  GST_OVERLAY_TYPE_BBOX,
+  GST_OVERLAY_TYPE_TIMESTAMP,
+  GST_OVERLAY_TYPE_STRING,
+  GST_OVERLAY_TYPE_MASK,
+  GST_OVERLAY_TYPE_IMAGE,
+  GST_OVERLAY_TYPE_DETECTION,
+  GST_OVERLAY_TYPE_CLASSIFICATION,
+  GST_OVERLAY_TYPE_POSE_ESTIMATION,
+  GST_OVERLAY_TYPE_OPTCLFLOW,
+  GST_OVERLAY_TYPE_MAX
+};
+
+enum
+{
+  GST_OVERLAY_TIMESTAMP_DATE_TIME,
+  GST_OVERLAY_TIMESTAMP_PTS_DTS,
+};
+
+enum
+{
+  GST_OVERLAY_MASK_CIRCLE,
+  GST_OVERLAY_MASK_RECTANGLE,
+  GST_OVERLAY_MASK_POLYGON,
+};
+
+/**
+ * GstVideoCoords:
+ * @x: Point coordinate on the X Axis in pixels.
+ * @y: Point coordinate on the Y Axis in pixels.
+ *
+ * Point coordinates in pixels.
+ */
+struct _GstVideoCoords {
+  gint x;
+  gint y;
+};
+
+/**
+ * GstVideoCircle:
+ * @x: The circle centre coordinate on the X Axis in pixels.
+ * @y: The circle Centre coordinate on the Y Axis in pixels.
+ * @radius: Point coordinate on the Y Axis in pixels.
+ *
+ * Circle position and radius in pixels.
+ */
+struct _GstVideoCircle {
+  gint x;
+  gint y;
+  gint radius;
+};
+
+/**
+ * GstVideoPolygon:
+ * @points: Polygon points with X and Y coordinates in pixels.
+ * @n_points: The number of polygon points.
+ * @region: The rectangular region which the polygon occupies.
+ *
+ * Circle position and radius in pixels.
+ */
+struct _GstVideoPolygon {
+  GstVideoCoords    points[GST_VIDEO_POLYGON_MAX_POINTS];
+  guint8            n_points;
+  GstVideoRectangle region;
+};
+
+/**
+ * GstOverlayBBox:
+ * @name: Unique name identifier (GQuark).
+ * @destination: Destination region in the frame (in pixels).
+ * @color: Color code in hex format - 0xRRGGBBAA.
+ * @enable: Whether or not to apply the overlay object.
+ * @blit: Cached overlay blit with the drawn object.
+ *
+ * Bounding box overlay. Rectangle with coordinates, dimensions and color
+ * defined by the user along with an unique name.
+ */
+struct _GstOverlayBBox {
+  GQuark            name;
+
+  GstVideoRectangle destination;
+  gint32            color;
+
+  gboolean          enable;
+  GstVideoBlit      blit;
+};
+
+/**
+ * GstOverlayTimestamp:
+ * @type: The type of the timestamp - PTS/DTS or DATE/TIME.
+ * @format: The timestamp formatting.
+ * @fontsize: The font size of the timestamp text.
+ * @position: Top left corner of the overlay frame (in pixels).
+ * @color: Color code in hex format - 0xRRGGBBAA.
+ * @enable: Whether or not to apply the overlay object.
+ *
+ * Timestamp overlay. String representing either the buffer PTS/DTS or the
+ * DATE/TIME timestamp with formatting, font size, color and position defined
+ * by the user.
+ */
+struct _GstOverlayTimestamp {
+  gint           type;
+
+  gchar          *format;
+  gint           fontsize;
+
+  GstVideoCoords position;
+  gint32         color;
+
+  gboolean       enable;
+};
+
+/**
+ * GstOverlayString:
+ * @name: Unique name identifier (GQuark).
+ * @contents: The contents of the user defined text.
+ * @fontsize: The font size of the text.
+ * @position: Top left corner of the overlay frame (in pixels).
+ * @color: Color code in hex format - 0xRRGGBBAA.
+ * @enable: Whether or not to apply the overlay object.
+ * @blit: Cached overlay blit with the drawn object.
+ *
+ * String overlay. Text with contents, font size, color and position defined
+ * by the user.
+ */
+struct _GstOverlayString {
+  GQuark         name;
+
+  gchar          *contents;
+  gint           fontsize;
+
+  GstVideoCoords position;
+  gint32         color;
+
+  gboolean       enable;
+  GstVideoBlit   blit;
+};
+
+/**
+ * GstOverlayMask:
+ * @name: Unique name identifier (GQuark).
+ * @type: The type of the mask - rectangle or circle.
+ * @dims: Union for the dimensions of the privacy mask.
+ * @color: Color code in hex format - 0xRRGGBBAA.
+ * @infill: Whether or not ot fill the whole mask area or just the borders.
+ * @inverse: Whether or not to fill mask area or the remaining area.
+ * @enable: Whether or not to apply the overlay object.
+ * @blit: Cached overlay blit with the drawn object.
+ *
+ * Privacy mask overlay. An opaque rectangle or circle with dimensions, color
+ * and position defined by the user.
+ */
+struct _GstOverlayMask {
+  GQuark              name;
+
+  gint                type;
+  union {
+    GstVideoCircle    circle;
+    GstVideoRectangle rectangle;
+    GstVideoPolygon   polygon;
+  } dims;
+
+  gint32              color;
+  gboolean            infill;
+  gboolean            inverse;
+
+  gboolean            enable;
+  GstVideoBlit        blit;
+};
+
+/**
+ * GstOverlayImage:
+ * @name: Unique name identifier (GQuark).
+ * @path: The file name and system path to the static image.
+ * @width: Width of the static image.
+ * @height: Height of the static image.
+ * @destination: Destination region in the frame (in pixels).
+ * @enable: Whether or not to apply the overlay object.
+ * @blit: Cached overlay blit with the drawn object.
+ *
+ * Static image overlay. A static RGBA image loaded from the file system with
+ * user defined position and dimensions in the destination frame.
+ */
+struct _GstOverlayImage {
+  GQuark            name;
+
+  gchar             *path;
+  gint              width;
+  gint              height;
+  GstVideoRectangle destination;
+
+  gboolean          enable;
+  GstVideoBlit      blit;
+};
+
+void
+gst_overlay_timestamp_free (GstOverlayTimestamp * timestamp);
+
+void
+gst_overlay_string_free (GstOverlayString * string);
+
+void
+gst_overlay_image_free (GstOverlayImage * simage);
+
+gboolean
+gst_extract_bboxes (const GValue * value, GArray * bboxes);
+
+gboolean
+gst_extract_timestamps (const GValue * value, GArray * timestamps);
+
+gboolean
+gst_extract_strings (const GValue * value, GArray * strings);
+
+gboolean
+gst_extract_masks (const GValue * value, GArray * masks);
+
+gboolean
+gst_extract_static_images (const GValue * value, GArray * images);
+
+gchar *
+gst_serialize_bboxes (GArray * bboxes);
+
+gchar *
+gst_serialize_timestamps (GArray * timestamps);
+
+gchar *
+gst_serialize_strings (GArray * paragraphs);
+
+gchar *
+gst_serialize_masks (GArray * masks);
+
+gchar *
+gst_serialize_static_images (GArray * simages);
+
+G_END_DECLS
+
+#endif // __GST_QTI_OVERLAY_UTILS_H__

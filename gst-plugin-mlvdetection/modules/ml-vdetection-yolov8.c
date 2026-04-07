@@ -1,0 +1,471 @@
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
+#include <stdio.h>
+#include <math.h>
+
+#include <gst/utils/common-utils.h>
+#include <gst/utils/batch-utils.h>
+#include <gst/ml/ml-module-utils.h>
+#include <gst/ml/ml-module-video-detection.h>
+
+// Set the default debug category.
+#define GST_CAT_DEFAULT gst_ml_module_debug
+
+#define GST_ML_SUB_MODULE_CAST(obj) ((GstMLSubModule*)(obj))
+
+// MODULE_CAPS support input dim [32, 32] -> [1920, 1088] Number class 1 -> 1001
+#define GST_ML_MODULE_CAPS \
+    "neural-network/tensors, " \
+    "type = (string) { FLOAT32 }, " \
+    "dimensions = (int) < <1, [21, 42840], 4>, <1, [21, 42840]>, <1, [21, 42840]> >; " \
+    "neural-network/tensors, " \
+    "type = (string) { FLOAT32 }, " \
+    "dimensions = (int) < <1, 4, [21, 42840]>, <1, [1, 1001], [21, 42840]> >; " \
+    "neural-network/tensors, " \
+    "type = (string) { FLOAT32 }, " \
+    "dimensions = (int) < <1, [5, 1005], [21, 42840]> > "
+
+// Module caps instance
+static GstStaticCaps modulecaps = GST_STATIC_CAPS (GST_ML_MODULE_CAPS);
+
+typedef struct _GstMLSubModule GstMLSubModule;
+
+struct _GstMLSubModule {
+  // Configurated ML capabilities in structure format.
+  GstMLInfo  mlinfo;
+
+  // List of prediction labels.
+  GHashTable *labels;
+  // Confidence threshold value.
+  gdouble    threshold;
+};
+
+static void
+gst_ml_module_parse_monoblock_frame (GstMLSubModule * submodule,
+    GArray * predictions, GstMLFrame * mlframe)
+{
+  GstProtectionMeta *pmeta = NULL;
+  GstMLBoxPrediction *prediction = NULL;
+  GstMLLabel *label = NULL;
+  gfloat *bboxes = NULL, *scores = NULL;
+  GstVideoRectangle region = { 0, };
+  GstMLType mltype = GST_ML_TYPE_UNKNOWN;
+  guint n_classes = 0, n_paxels = 0, idx = 0, num = 0;
+  gdouble cx = 0, cy = 0, w = 0, h = 0, confidence = 0.0;
+  gint nms = -1;
+
+  pmeta = gst_buffer_get_protection_meta_id (mlframe->buffer,
+      gst_batch_channel_name (0));
+
+  prediction = &(g_array_index (predictions, GstMLBoxPrediction, 0));
+  prediction->info = pmeta->info;
+
+  // Extract the source tensor region with actual data.
+  gst_ml_structure_get_source_region (pmeta->info, &region);
+
+  mltype = GST_ML_FRAME_TYPE (mlframe);
+  n_paxels = GST_ML_FRAME_DIM (mlframe, 0, 2);
+
+  // We subtract 4 because the last 4 are the bbox coordinates.
+  n_classes = GST_ML_FRAME_DIM (mlframe, 0, 1) - 4;
+
+  bboxes = GFLOAT_PTR_CAST (GST_ML_FRAME_BLOCK_DATA (mlframe, 0));
+  scores = &bboxes[4 * n_paxels];
+
+  for (idx = 0; idx < n_paxels; idx++) {
+    GstMLBoxEntry entry = { 0, };
+    guint class_idx = 0, id = 0;
+
+    // Initial position ID of the class index.
+    id = idx;
+
+    // Find the position of the class index with the highest score in current paxel.
+    for (num = (idx + n_paxels); num < (n_classes * n_paxels); num += n_paxels)
+      id = (gst_ml_tensor_compare_values (mltype, scores, num, id) > 0) ? num : id;
+
+    // Get the class index from the position ID.
+    class_idx = id / n_paxels;
+
+    // Dequantize the class confidence.
+    confidence = scores[id];
+
+    // Discard results below the minimum score threshold.
+    if (confidence < submodule->threshold)
+      continue;
+
+    // Get bounding box centre X, centre Y, width, height coordinates parameters.
+    cx = bboxes[idx];
+    cy = bboxes[idx + n_paxels];
+    w  = bboxes[idx + 2 * n_paxels];
+    h  = bboxes[idx + 3 * n_paxels];
+
+    GST_LOG ("Class: %u Confidence: %.2f CX x CY[%f, %f] W x H: [%f, %f]",
+        class_idx, confidence, cx, cy, w, h);
+
+    entry.top =  cy - h / 2.0f;
+    entry.left = cx - w / 2.0f;
+    entry.bottom = entry.top + h;
+    entry.right = entry.left + w;
+
+    // Keep dimensions within the region.
+    entry.left = MAX (entry.left, (gfloat) region.x);
+    entry.top = MAX (entry.top, (gfloat) region.y);
+    entry.right = MIN (entry.right, (gfloat) (region.x + region.w));
+    entry.bottom = MIN (entry.bottom, (gfloat) (region.y + region.h));
+
+    GST_LOG ("Class: %u Confidence: %.2f Box[%f, %f, %f, %f]", class_idx,
+        confidence, entry.top, entry.left, entry.bottom, entry.right);
+
+    // Adjust bounding box dimensions with extracted source tensor region.
+    gst_ml_box_transform_dimensions (&entry, &region);
+
+    label = g_hash_table_lookup (
+        submodule->labels, GUINT_TO_POINTER (class_idx));
+
+    entry.confidence = confidence * 100.0F;
+    entry.name = g_quark_from_string (label ? label->name : "unknown");
+    entry.color = label ? label->color : 0x000000F;
+
+    // Non-Max Suppression (NMS) algorithm.
+    nms = gst_ml_box_non_max_suppression (&entry, prediction->entries);
+
+    // If the NMS result is -2 don't add the prediction to the list.
+    if (nms == (-2))
+      continue;
+
+    GST_TRACE ("Label: %s Confidence: %.2f Box[%f, %f, %f, %f]",
+        g_quark_to_string (entry.name), entry.confidence,entry.top, entry.left,
+        entry.bottom, entry.right);
+
+    // If the NMS result is above -1 remove the entry with the nms index.
+    if (nms >= 0)
+      prediction->entries = g_array_remove_index (prediction->entries, nms);
+
+    prediction->entries = g_array_append_val (prediction->entries, entry);
+  }
+
+  g_array_sort (prediction->entries, (GCompareFunc) gst_ml_box_compare_entries);
+}
+
+static void
+gst_ml_module_parse_dualblock_frame (GstMLSubModule * submodule,
+    GArray * predictions, GstMLFrame * mlframe)
+{
+  GstProtectionMeta *pmeta = NULL;
+  GstMLBoxPrediction *prediction = NULL;
+  GstMLLabel *label = NULL;
+  gfloat *bboxes = NULL, *scores = NULL;
+  GstVideoRectangle region = { 0, };
+  GstMLType mltype = GST_ML_TYPE_UNKNOWN;
+  guint n_classes = 0, n_paxels = 0, idx = 0, num = 0;
+  gdouble cx = 0, cy = 0, w = 0, h = 0, confidence = 0.0;
+  gint nms = -1;
+
+  pmeta = gst_buffer_get_protection_meta_id (mlframe->buffer,
+      gst_batch_channel_name (0));
+
+  prediction = &(g_array_index (predictions, GstMLBoxPrediction, 0));
+  prediction->info = pmeta->info;
+
+  // Extract the source tensor region with actual data.
+  gst_ml_structure_get_source_region (pmeta->info, &region);
+
+  mltype = GST_ML_FRAME_TYPE (mlframe);
+  n_paxels = GST_ML_FRAME_DIM (mlframe, 0, 2);
+  n_classes = GST_ML_FRAME_DIM (mlframe, 1, 1);
+
+  bboxes = GFLOAT_PTR_CAST (GST_ML_FRAME_BLOCK_DATA (mlframe, 0));
+  scores = GFLOAT_PTR_CAST (GST_ML_FRAME_BLOCK_DATA (mlframe, 1));
+
+  for (idx = 0; idx < n_paxels; idx++) {
+    GstMLBoxEntry entry = { 0, };
+    guint class_idx = 0, id = 0;
+
+    // Initial position ID of the class index.
+    id = idx;
+
+    // Find the position of the class index with the highest score in current paxel.
+    for (num = (idx + n_paxels); num < (n_classes * n_paxels); num += n_paxels)
+      id = (gst_ml_tensor_compare_values (mltype, scores, num, id) > 0) ? num : id;
+
+    // Get the class index from the position ID.
+    class_idx = id / n_paxels;
+
+    // Dequantize the class confidence.
+    confidence = scores[id];
+
+    // Discard results below the minimum score threshold.
+    if (confidence < submodule->threshold)
+      continue;
+
+    // Get bounding box centre X, centre Y, width, height coordinates parameters.
+    cx = bboxes[id + 0 * n_paxels];
+    cy = bboxes[id + 1 * n_paxels];
+    w  = bboxes[id + 2 * n_paxels];
+    h  = bboxes[id + 3 * n_paxels];
+
+    GST_LOG ("Class: %u Confidence: %.2f CX x CY[%f, %f] W x H: [%f, %f]",
+        class_idx, confidence, cx, cy, w, h);
+
+    entry.top =  cy - h / 2.0f;
+    entry.left = cx - w / 2.0f;
+    entry.bottom = entry.top + h;
+    entry.right = entry.left + w;
+
+    // Keep dimensions within the region.
+    entry.left = MAX (entry.left, (gfloat) region.x);
+    entry.top = MAX (entry.top, (gfloat) region.y);
+    entry.right = MIN (entry.right, (gfloat) (region.x + region.w));
+    entry.bottom = MIN (entry.bottom, (gfloat) (region.y + region.h));
+
+    GST_LOG ("Class: %u Confidence: %.2f Box[%f, %f, %f, %f]", class_idx,
+        confidence, entry.top, entry.left, entry.bottom,
+        entry.right);
+
+    // Adjust bounding box dimensions with extracted source tensor region.
+    gst_ml_box_transform_dimensions (&entry, &region);
+
+    label = g_hash_table_lookup (
+        submodule->labels, GUINT_TO_POINTER (class_idx));
+
+    entry.confidence = confidence * 100.0F;
+    entry.name = g_quark_from_string (label ? label->name : "unknown");
+    entry.color = label ? label->color : 0x000000F;
+
+    // Non-Max Suppression (NMS) algorithm.
+    nms = gst_ml_box_non_max_suppression (&entry, prediction->entries);
+
+    // If the NMS result is -2 don't add the prediction to the list.
+    if (nms == (-2))
+      continue;
+
+    GST_TRACE ("Label: %s Confidence: %.2f Box[%f, %f, %f, %f]",
+        g_quark_to_string (entry.name), entry.confidence,
+        entry.top, entry.left, entry.bottom, entry.right);
+
+    // If the NMS result is above -1 remove the entry with the nms index.
+    if (nms >= 0)
+      prediction->entries = g_array_remove_index (prediction->entries, nms);
+
+    prediction->entries = g_array_append_val (prediction->entries, entry);
+  }
+
+  g_array_sort (prediction->entries, (GCompareFunc) gst_ml_box_compare_entries);
+}
+
+static void
+gst_ml_module_parse_tripleblock_frame (GstMLSubModule * submodule,
+    GArray * predictions, GstMLFrame * mlframe)
+{
+  GstProtectionMeta *pmeta = NULL;
+  GstMLBoxPrediction *prediction = NULL;
+  GstMLLabel *label = NULL;
+  gfloat *bboxes = NULL, *scores = NULL, *classes = NULL;
+  GstVideoRectangle region = { 0, };
+  guint n_paxels = 0, idx = 0, class_idx = 0;
+  gfloat confidence = 0;
+  gint nms = -1;
+
+  pmeta = gst_buffer_get_protection_meta_id (mlframe->buffer,
+      gst_batch_channel_name (0));
+
+  prediction = &(g_array_index (predictions, GstMLBoxPrediction, 0));
+  prediction->info = pmeta->info;
+
+  // Extract the source tensor region with actual data.
+  gst_ml_structure_get_source_region (pmeta->info, &region);
+
+  n_paxels = GST_ML_FRAME_DIM (mlframe, 0, 1);
+
+  bboxes = GFLOAT_PTR_CAST (GST_ML_FRAME_BLOCK_DATA (mlframe, 0));
+  scores = GFLOAT_PTR_CAST (GST_ML_FRAME_BLOCK_DATA (mlframe, 1));
+  classes = GFLOAT_PTR_CAST (GST_ML_FRAME_BLOCK_DATA (mlframe, 2));
+
+  for (idx = 0; idx < n_paxels; idx++) {
+    GstMLBoxEntry entry = { 0, };
+
+    confidence = scores[idx];
+    class_idx = classes[idx];
+
+    // Discard results below the minimum score threshold.
+    if (confidence < submodule->threshold)
+      continue;
+
+    entry.left = bboxes[idx * 4];
+    entry.top = bboxes[idx * 4 + 1];
+    entry.right = bboxes[idx * 4 + 2];
+    entry.bottom = bboxes[idx * 4 + 3];
+
+    // Keep dimensions within the region.
+    entry.left = MAX (entry.left, (gfloat) region.x);
+    entry.top = MAX (entry.top, (gfloat) region.y);
+    entry.right = MIN (entry.right, (gfloat) (region.x + region.w));
+    entry.bottom = MIN (entry.bottom, (gfloat) (region.y + region.h));
+
+    GST_LOG ("Class: %u Confidence: %.2f Box[%f, %f, %f, %f]", class_idx,
+        confidence, entry.top, entry.left, entry.bottom, entry.right);
+
+    // Adjust bounding box dimensions with extracted source tensor region.
+    gst_ml_box_transform_dimensions (&entry, &region);
+
+    label = g_hash_table_lookup (
+        submodule->labels, GUINT_TO_POINTER (class_idx));
+
+    entry.confidence = confidence * 100.0F;
+    entry.name = g_quark_from_string (label ? label->name : "unknown");
+    entry.color = label ? label->color : 0x000000F;
+
+    // Non-Max Suppression (NMS) algorithm.
+    nms = gst_ml_box_non_max_suppression (&entry, prediction->entries);
+
+    // If the NMS result is -2 don't add the prediction to the list.
+    if (nms == (-2))
+      continue;
+
+    GST_TRACE ("Label: %s Confidence: %.2f Box[%f, %f, %f, %f]",
+        g_quark_to_string (entry.name), entry.confidence, entry.top, entry.left,
+        entry.bottom, entry.right);
+
+    // If the NMS result is above -1 remove the entry with the nms index.
+    if (nms >= 0)
+      prediction->entries = g_array_remove_index (prediction->entries, nms);
+
+    prediction->entries = g_array_append_val (prediction->entries, entry);
+  }
+
+  g_array_sort (prediction->entries, (GCompareFunc) gst_ml_box_compare_entries);
+}
+
+gpointer
+gst_ml_module_open (void)
+{
+  GstMLSubModule *submodule = NULL;
+
+  submodule = g_slice_new0 (GstMLSubModule);
+  g_return_val_if_fail (submodule != NULL, NULL);
+
+  return (gpointer) submodule;
+}
+
+void
+gst_ml_module_close (gpointer instance)
+{
+  GstMLSubModule *submodule = GST_ML_SUB_MODULE_CAST (instance);
+
+  if (NULL == submodule)
+    return;
+
+  if (submodule->labels != NULL)
+    g_hash_table_destroy (submodule->labels);
+
+  g_slice_free (GstMLSubModule, submodule);
+}
+
+GstCaps *
+gst_ml_module_caps (void)
+{
+  static GstCaps *caps = NULL;
+  static gsize inited = 0;
+
+  if (g_once_init_enter (&inited)) {
+    caps = gst_static_caps_get (&modulecaps);
+    g_once_init_leave (&inited, 1);
+  }
+
+  return caps;
+}
+
+gboolean
+gst_ml_module_configure (gpointer instance, GstStructure * settings)
+{
+  GstMLSubModule *submodule = GST_ML_SUB_MODULE_CAST (instance);
+  GstCaps *caps = NULL, *mlcaps = NULL;
+  const gchar *input = NULL;
+  GValue list = G_VALUE_INIT;
+  gdouble threshold = 0.0;
+  gboolean success = FALSE;
+
+  g_return_val_if_fail (submodule != NULL, FALSE);
+  g_return_val_if_fail (settings != NULL, FALSE);
+
+  if (!(success = gst_structure_has_field (settings, GST_ML_MODULE_OPT_CAPS))) {
+    GST_ERROR ("Settings stucture does not contain configuration caps!");
+    goto cleanup;
+  }
+
+  // Fetch the configuration capabilities.
+  gst_structure_get (settings, GST_ML_MODULE_OPT_CAPS, GST_TYPE_CAPS, &caps, NULL);
+  // Get the set of supported capabilities.
+  mlcaps = gst_ml_module_caps ();
+
+  // Make sure that the configuration capabilities are fixated and supported.
+  if (!(success = gst_caps_is_fixed (caps))) {
+    GST_ERROR ("Configuration caps are not fixated!");
+    goto cleanup;
+  } else if (!(success = gst_caps_can_intersect (caps, mlcaps))) {
+    GST_ERROR ("Configuration caps are not supported!");
+    goto cleanup;
+  }
+
+  if (!(success = gst_ml_info_from_caps (&(submodule->mlinfo), caps))) {
+    GST_ERROR ("Failed to get ML info from confguration caps!");
+    goto cleanup;
+  }
+
+  input = gst_structure_get_string (settings, GST_ML_MODULE_OPT_LABELS);
+
+  // Parse funtion will print error message if it fails, simply goto cleanup.
+  if (!(success = gst_ml_parse_labels (input, &list)))
+    goto cleanup;
+
+  submodule->labels = gst_ml_load_labels (&list);
+
+  // Labels funtion will print error message if it fails, simply goto cleanup.
+  if (!(success = (submodule->labels != NULL)))
+    goto cleanup;
+
+  success = gst_structure_has_field (settings, GST_ML_MODULE_OPT_THRESHOLD);
+  if (!success) {
+    GST_ERROR ("Settings stucture does not contain threshold value!");
+    goto cleanup;
+  }
+
+  gst_structure_get_double (settings, GST_ML_MODULE_OPT_THRESHOLD, &threshold);
+  submodule->threshold = threshold / 100.0;
+
+cleanup:
+  if (caps != NULL)
+    gst_caps_unref (caps);
+
+  g_value_unset (&list);
+  gst_structure_free (settings);
+
+  return success;
+}
+
+gboolean
+gst_ml_module_process (gpointer instance, GstMLFrame * mlframe, gpointer output)
+{
+  GstMLSubModule *submodule = GST_ML_SUB_MODULE_CAST (instance);
+  GArray *predictions = (GArray *) output;
+
+  g_return_val_if_fail (submodule != NULL, FALSE);
+  g_return_val_if_fail (mlframe != NULL, FALSE);
+  g_return_val_if_fail (predictions != NULL, FALSE);
+
+  if (GST_ML_INFO_N_TENSORS (&(submodule->mlinfo)) == 3) {
+    gst_ml_module_parse_tripleblock_frame (submodule, predictions, mlframe);
+  } else if (GST_ML_INFO_N_TENSORS (&(submodule->mlinfo)) == 2) {
+    gst_ml_module_parse_dualblock_frame (submodule, predictions, mlframe);
+  } else if (GST_ML_INFO_N_TENSORS (&(submodule->mlinfo)) == 1) {
+    gst_ml_module_parse_monoblock_frame (submodule, predictions, mlframe);
+  } else {
+    GST_ERROR ("Ml frame with unsupported post-processing procedure!");
+    return FALSE;
+  }
+
+  return TRUE;
+}
