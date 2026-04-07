@@ -10,14 +10,12 @@ Build-Depends:
  libgstreamer1.0-dev,
  libgstreamer-plugins-base1.0-dev,
  libgbm-dev,
- qcom-fastcv-binaries-dev,
  libgstrtspserver-1.0-dev,
  libcairo2-dev,
  libjson-glib-dev,
  librdkafka-dev,
  libmosquitto-dev,
  libhiredis-dev,
- qcom-video-ctrl-dev,
  libeigen3-dev,
  libopencv-dev,
  opencl-c-headers,
@@ -291,19 +289,6 @@ Description: GStreamer bin plugin for RTSP streaming
  Streaming Protocol) server functionality. Simplifies creation of RTSP streaming
  pipelines with built-in session management, authentication, and multi-client
  support for IP camera and streaming applications.
-
-Package: gstreamer1.0-plugins-imsdk-smartvencbin
-Section: libs
-Architecture: arm64
-Depends:
- ${shlibs:Depends},
- ${misc:Depends},
- qcom-video-ctrl1,
-Description: GStreamer bin plugin for smart video encoding
- Provides the qtismartvencbin element for intelligent video encoding with
- dynamic bitrate control and quality optimization. Integrates with Qualcomm's
- video control framework for adaptive encoding based on content complexity,
- network conditions, and quality requirements.
 
 Package: gstreamer1.0-plugins-imsdk-socket
 Section: libs
