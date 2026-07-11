@@ -21,6 +21,8 @@ Build-Depends:
  opencl-c-headers,
  libcairo2-dev,
  libqmmf-dev,
+ libqnn-dev,
+ libsnpe-dev,
 Standards-Version: 4.6.2
 Homepage: https://github.com/qualcomm/gst-plugins-imsdk
 
@@ -41,6 +43,8 @@ Depends:
  gstreamer1.0-plugins-imsdk-mlmetaextractor,
  gstreamer1.0-plugins-imsdk-mlmetaparser,
  gstreamer1.0-plugins-imsdk-mlpostprocess,
+ gstreamer1.0-plugins-imsdk-mlqnn,
+ gstreamer1.0-plugins-imsdk-mlsnpe,
  gstreamer1.0-plugins-imsdk-mlvclassification,
  gstreamer1.0-plugins-imsdk-mlvconverter,
  gstreamer1.0-plugins-imsdk-mlvdetection,
@@ -230,6 +234,34 @@ Description: GStreamer plugin for ML inference post-processing
  (YOLO, SSD, MobileNet), classification, segmentation, and pose estimation.
  Converts raw model outputs into structured metadata with bounding boxes,
  labels, and confidence scores.
+
+Package: gstreamer1.0-plugins-imsdk-mlqnn
+Section: libs
+Architecture: arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ libqnn1,
+Description: GStreamer plugin for ML inference using Qualcomm AI Engine Direct (QNN)
+ Provides the qtimlqnn element for running machine learning inference through
+ the Qualcomm AI Engine Direct (QNN) SDK. Executes neural network models on
+ Qualcomm accelerators such as the CPU, GPU, and Hexagon Tensor Processor (HTP),
+ taking preprocessed tensors as input and producing raw model output tensors
+ for downstream post-processing.
+
+Package: gstreamer1.0-plugins-imsdk-mlsnpe
+Section: libs
+Architecture: arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ libsnpe1,
+Description: GStreamer plugin for ML inference using Snapdragon Neural Processing Engine (SNPE)
+ Provides the qtimlsnpe element for running machine learning inference through
+ the Snapdragon Neural Processing Engine (SNPE) SDK. Executes neural network
+ models on Qualcomm accelerators such as the CPU, GPU, and DSP, taking
+ preprocessed tensors as input and producing raw model output tensors for
+ downstream post-processing.
 
 Package: gstreamer1.0-plugins-imsdk-mlvclassification
 Section: libs
