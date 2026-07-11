@@ -20,6 +20,7 @@ Build-Depends:
  libopencv-dev,
  opencl-c-headers,
  libcairo2-dev,
+ libqmmf-dev,
 Standards-Version: 4.6.2
 Homepage: https://github.com/qualcomm/gst-plugins-imsdk
 
@@ -28,6 +29,10 @@ Section: metapackages
 Architecture: arm64
 Depends:
  gstreamer1.0-plugins-imsdk-batch,
+ gstreamer1.0-plugins-imsdk-camsrc,
+ gstreamer1.0-plugins-imsdk-camreproc,
+ gstreamer1.0-plugins-imsdk-camimgreproc,
+ gstreamer1.0-plugins-imsdk-jpegenc,
  gstreamer1.0-plugins-imsdk-metamux,
  gstreamer1.0-plugins-imsdk-metatransform,
  gstreamer1.0-plugins-imsdk-mlaclassification,
@@ -72,6 +77,68 @@ Description: GStreamer plugin for batching multiple stream buffers
  Provides the qtibatch element for batching buffers from multiple input streams
  into a single output buffer. Useful for efficient processing of multiple video
  or data streams simultaneously, reducing overhead in multi-stream scenarios.
+
+Package: gstreamer1.0-plugins-imsdk-camsrc
+Section: libs
+Architecture: arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Recommends:
+ qcom-camera-server,
+Description: GStreamer camera source plugin for Qualcomm platforms
+ Provides the qticamsrc element (and the legacy qtiqmmfsrc alias), a live
+ video/image source that captures from Qualcomm camera hardware through the
+ QMMF camera server. The server (qcom-camera-server) must be reachable at
+ runtime, but is only recommended rather than required: this lets the plugin
+ run inside a container that talks to a cam-server instance running on the
+ host platform, instead of forcing the daemon to be co-installed.
+
+Package: gstreamer1.0-plugins-imsdk-camreproc
+Section: libs
+Architecture: arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Recommends:
+ qcom-camera-server,
+Description: GStreamer camera reprocessing plugin for Qualcomm platforms
+ Provides the qticamreproc element for reprocessing captured camera frames
+ through the QMMF camera server (for example noise reduction and other
+ offline camera post-processing). The server (qcom-camera-server) must be
+ reachable at runtime, but is only recommended rather than required so the
+ plugin can run in a container that talks to a cam-server instance running
+ on the host platform.
+
+Package: gstreamer1.0-plugins-imsdk-camimgreproc
+Section: libs
+Architecture: arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Recommends:
+ qcom-camera-server,
+Description: GStreamer camera image reprocessing plugin for Qualcomm platforms
+ Provides the qticamimgreproc element for offline image reprocessing of
+ camera buffers through the QMMF camera server. The server
+ (qcom-camera-server) must be reachable at runtime, but is only recommended
+ rather than required so the plugin can run in a container that talks to a
+ cam-server instance running on the host platform.
+
+Package: gstreamer1.0-plugins-imsdk-jpegenc
+Section: libs
+Architecture: arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Recommends:
+ qcom-camera-server,
+Description: GStreamer JPEG encoder plugin for Qualcomm platforms
+ Provides the qtijpegenc element for hardware-assisted JPEG encoding of
+ camera frames through the QMMF camera server. The server
+ (qcom-camera-server) must be reachable at runtime, but is only recommended
+ rather than required so the plugin can run in a container that talks to a
+ cam-server instance running on the host platform.
 
 Package: gstreamer1.0-plugins-imsdk-metamux
 Section: libs
@@ -313,6 +380,16 @@ Description: Utility tools for Qualcomm GStreamer plugins
  GStreamer plugins. Includes pipeline testing tools, performance profiling
  utilities, and debugging aids for development and troubleshooting.
 
+Package: gstreamer1.0-plugins-imsdk-uridecodebin
+Section: libs
+Architecture: arm64
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: The plugin extends GStreamer's URI decoding capabilities by creating
+ and managing decoding pipelines for multimedia streams obtained from
+ URI sources.
+
 Package: gstreamer1.0-plugins-imsdk-vcomposer
 Section: libs
 Architecture: arm64
@@ -360,17 +437,6 @@ Description: GStreamer plugin for video stream splitting and ROI extraction
  regions of interest (ROIs). Supports multiple output pads with independent
  cropping, scaling, and format conversion. Useful for multi-resolution encoding,
  ROI-based processing, and parallel ML inference on different image regions.
-
-Package: gstreamer1.0-plugins-imsdk-uridecodebin
-Section: libs
-Architecture: arm64
-Depends:
- ${shlibs:Depends},
- ${misc:Depends},
-Description: The plugin extends GStreamer's URI decoding capabilities by creating
- and managing decoding pipelines for multimedia streams obtained from
- URI sources.
-
 
 Package: gstreamer1.0-plugins-imsdk-vtransform
 Section: libs
@@ -421,3 +487,4 @@ Description: Python examples for Qualcomm GStreamer plugins
  of Qualcomm GStreamer plugins through Python bindings. Includes examples for
  ML inference, video processing, metadata handling, and pipeline construction
  using PyGObject and OpenCV integration.
+
