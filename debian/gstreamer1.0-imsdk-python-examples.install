@@ -15,8 +15,8 @@ usr/bin/gst-opencv-transform.py
 usr/bin/gst-parallel-inference.py
 usr/bin/gst-rtspsrc-detection-display.py
 usr/bin/Qdemo
-usr/share/qdemo/Qdemo.png
 usr/share/qdemo/Qdemo.gif
+usr/share/qdemo/Qdemo.png
 usr/bin/gst-ai-audio-inference.py
 usr/bin/gst-ai-audio-postprocess.py
 usr/bin/gst-ai-audio-preprocess.py
