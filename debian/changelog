@@ -1,3 +1,9 @@
+gst-plugins-imsdk (1.0.2-0qli2) forky; urgency=medium
+
+  * Update Section for all packages
+
+ -- Bala Sai Kosuri <bkosuri@qti.qualcomm.com>  Wed, 26 Aug 2026 20:31:54 -0700
+
 gst-plugins-imsdk (1.0.2-0qli1) forky; urgency=medium
 
   * Initial release.

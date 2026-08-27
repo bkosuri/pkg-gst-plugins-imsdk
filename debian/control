@@ -1,5 +1,5 @@
 Source: gst-plugins-imsdk
-Section: libs
+Section: contrib/libs
 Priority: optional
 Maintainer: Bala Sai Kosuri <bkosuri@qti.qualcomm.com>
 Build-Depends:
@@ -25,7 +25,7 @@ Standards-Version: 4.6.2
 Homepage: https://github.com/qualcomm/gst-plugins-imsdk
 
 Package: gstreamer1.0-plugins-imsdk
-Section: metapackages
+Section: contrib/metapackages
 Architecture: arm64
 Depends:
  gstreamer1.0-plugins-imsdk-oss,
@@ -42,7 +42,7 @@ Description: Complete collection of Qualcomm GStreamer plugins
  source).
 
 Package: gstreamer1.0-plugins-imsdk-oss
-Section: metapackages
+Section: contrib/metapackages
 Architecture: arm64
 Depends:
  gstreamer1.0-plugins-imsdk-batch,
@@ -83,7 +83,7 @@ Description: Collection of Qualcomm GStreamer plugins with open-source deps only
  environments where only open-source dependencies are available.
 
 Package: gstreamer1.0-plugins-imsdk-batch
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -94,7 +94,7 @@ Description: GStreamer plugin for batching multiple stream buffers
  or data streams simultaneously, reducing overhead in multi-stream scenarios.
 
 Package: gstreamer1.0-plugins-imsdk-camsrc
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -110,7 +110,7 @@ Description: GStreamer camera source plugin for Qualcomm platforms
  host platform, instead of forcing the daemon to be co-installed.
 
 Package: gstreamer1.0-plugins-imsdk-metamux
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -121,7 +121,7 @@ Description: GStreamer plugin for multiplexing video/audio streams with metadata
  as detection results, classifications, or custom annotations in ML pipelines.
 
 Package: gstreamer1.0-plugins-imsdk-metatransform
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -133,7 +133,7 @@ Description: GStreamer plugin for metadata processing and transformation
  systems and representations.
 
 Package: gstreamer1.0-plugins-imsdk-mlaclassification
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -144,7 +144,7 @@ Description: GStreamer plugin for audio classification using machine learning
  speech, or audio events. (Legacy plugin, consider using mlpostprocess instead)
 
 Package: gstreamer1.0-plugins-imsdk-mlaconverter
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -155,7 +155,7 @@ Description: GStreamer plugin for audio-to-tensor conversion for ML inference
  including resampling, normalization, and feature extraction.
 
 Package: gstreamer1.0-plugins-imsdk-mldemux
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -166,7 +166,7 @@ Description: GStreamer plugin for demultiplexing ML inference results
  parallel post-processing or different downstream consumers.
 
 Package: gstreamer1.0-plugins-imsdk-mlmetaextractor
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -177,7 +177,7 @@ Description: GStreamer plugin for extracting metadata from buffers
  logging, or exporting ML inference results and annotations.
 
 Package: gstreamer1.0-plugins-imsdk-mlmetaparser
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -188,7 +188,7 @@ Description: GStreamer plugin for parsing and attaching metadata to buffers
  ground truth data, or pre-computed results into media pipelines.
 
 Package: gstreamer1.0-plugins-imsdk-mlpostprocess
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -201,7 +201,7 @@ Description: GStreamer plugin for ML inference post-processing
  labels, and confidence scores.
 
 Package: gstreamer1.0-plugins-imsdk-mlvclassification
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -212,7 +212,7 @@ Description: GStreamer plugin for video classification using machine learning
  objects, scenes, or activities. (Legacy plugin, consider using mlpostprocess)
 
 Package: gstreamer1.0-plugins-imsdk-mlvconverter
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -224,7 +224,7 @@ Description: GStreamer plugin for video-to-tensor conversion for ML inference
  normalization, and ROI extraction for efficient batch processing.
 
 Package: gstreamer1.0-plugins-imsdk-mlvdetection
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -235,7 +235,7 @@ Description: GStreamer plugin for object detection using machine learning
  (Legacy plugin, consider using mlpostprocess instead)
 
 Package: gstreamer1.0-plugins-imsdk-mlvpose
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -246,7 +246,7 @@ Description: GStreamer plugin for pose estimation using machine learning
  models. (Legacy plugin, consider using mlpostprocess instead)
 
 Package: gstreamer1.0-plugins-imsdk-mlvsegmentation
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -257,7 +257,7 @@ Description: GStreamer plugin for semantic segmentation using machine learning
  using ML models. (Legacy plugin, consider using mlpostprocess instead)
 
 Package: gstreamer1.0-plugins-imsdk-mlvsuperresolution
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -268,7 +268,7 @@ Description: GStreamer plugin for video super-resolution using machine learning
  resolution with improved quality and detail preservation.
 
 Package: gstreamer1.0-plugins-imsdk-msgbroker
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -280,7 +280,7 @@ Description: GStreamer plugin for message broker integration (MQTT, Kafka)
  applications.
 
 Package: gstreamer1.0-plugins-imsdk-objtracker
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -292,7 +292,7 @@ Description: GStreamer plugin for multi-object tracking
  or deep learning-based trackers.
 
 Package: gstreamer1.0-plugins-imsdk-redissink
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -303,7 +303,7 @@ Description: GStreamer sink plugin for Redis database
  pub/sub messaging, or integration with Redis-based applications.
 
 Package: gstreamer1.0-plugins-imsdk-restricted-zone
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -315,7 +315,7 @@ Description: GStreamer plugin for restricted zone detection and monitoring
  configurable zone geometries and alert generation.
 
 Package: gstreamer1.0-plugins-imsdk-rtspbin
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -327,7 +327,7 @@ Description: GStreamer bin plugin for RTSP streaming
  support for IP camera and streaming applications.
 
 Package: gstreamer1.0-plugins-imsdk-socket
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -339,7 +339,7 @@ Description: GStreamer plugins for Unix domain socket communication
  and file descriptor passing for efficient pipeline distribution.
 
 Package: gstreamer1.0-plugins-imsdk-tools
-Section: utils
+Section: contrib/utils
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -350,7 +350,7 @@ Description: Utility tools for Qualcomm GStreamer plugins
  utilities, and debugging aids for development and troubleshooting.
 
 Package: gstreamer1.0-plugins-imsdk-uridecodebin
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -361,7 +361,7 @@ Description: GStreamer plugin for URI-based decoding pipelines
  URI sources.
 
 Package: gstreamer1.0-plugins-imsdk-vcomposer
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -373,7 +373,7 @@ Description: GStreamer plugin for video composition and layout
  for multi-view applications and video walls.
 
 Package: gstreamer1.0-plugins-imsdk-videotemplate
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -385,7 +385,7 @@ Description: GStreamer plugin template for custom video processing
  for Qualcomm platforms.
 
 Package: gstreamer1.0-plugins-imsdk-voverlay
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -397,7 +397,7 @@ Description: GStreamer plugin for video overlay and graphics rendering
  of ML inference results, OSD (on-screen display), and UI elements.
 
 Package: gstreamer1.0-plugins-imsdk-vsplit
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -409,7 +409,7 @@ Description: GStreamer plugin for video stream splitting and ROI extraction
  ROI-based processing, and parallel ML inference on different image regions.
 
 Package: gstreamer1.0-plugins-imsdk-vtransform
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -421,7 +421,7 @@ Description: GStreamer plugin for video transformation and format conversion
  various formats including NV12, NV21, RGBA, and compressed formats.
 
 Package: gstreamer1.0-plugins-imsdk-base
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -433,7 +433,7 @@ Description: Base library for Qualcomm GStreamer plugins
  Required dependency for most Qualcomm GStreamer plugins.
 
 Package: libgstreamer1.0-plugins-imsdk-base-dev
-Section: libdevel
+Section: contrib/libdevel
 Architecture: arm64
 Depends:
   gstreamer1.0-plugins-imsdk-base (= ${binary:Version}),
@@ -445,7 +445,7 @@ Description: Development files for Qualcomm GStreamer base library
  and common utilities.
 
 Package: gstreamer1.0-imsdk-python-examples-oss
-Section: utils
+Section: contrib/utils
 Architecture: arm64
 Depends:
  python3,
@@ -462,7 +462,7 @@ Description: Python examples for Qualcomm GStreamer plugins (OSS deps only)
  libcamerasrc, so they run without Qualcomm proprietary plugins.
 
 Package: gstreamer1.0-imsdk-python-examples
-Section: utils
+Section: contrib/utils
 Architecture: arm64
 Depends:
  python3,
@@ -480,7 +480,7 @@ Description: Python examples for Qualcomm GStreamer plugins
  examples that depend on Qualcomm proprietary plugins.
 
 Package: gstreamer1.0-imsdk-sample-apps-utils
-Section: libs
+Section: contrib/libs
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -493,7 +493,7 @@ Description: Shared utility library for Qualcomm GStreamer sample applications
  on Qualcomm platforms.
 
 Package: libgstreamer1.0-imsdk-sample-apps-utils-dev
-Section: libdevel
+Section: contrib/libdevel
 Architecture: arm64
 Depends:
  gstreamer1.0-imsdk-sample-apps-utils (= ${binary:Version}),
@@ -505,7 +505,7 @@ Description: Development files for Qualcomm GStreamer sample applications utilit
  utilities for Qualcomm GStreamer application development.
 
 Package: gstreamer1.0-imsdk-sample-apps-oss
-Section: utils
+Section: contrib/utils
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
@@ -520,7 +520,7 @@ Description: Sample applications for Qualcomm GStreamer plugins (OSS deps only)
  without Qualcomm proprietary plugins.
 
 Package: gstreamer1.0-imsdk-sample-apps
-Section: utils
+Section: contrib/utils
 Architecture: arm64
 Depends:
  ${shlibs:Depends},
